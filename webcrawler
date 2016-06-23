@@ -1,0 +1,166 @@
+#!/usr/bin/python
+import sys, socket, re, string
+from sets import Set
+from HTMLParser import HTMLParser
+class Error(Exception):
+    """Base class for exceptions in this program"""
+    pass
+
+"""user defined error handler for 403,404 error"""
+class C_4XX_Error(Error):
+    def __str__(self):
+        return repr(self.value)
+
+"""user defined error handler for 500 error:internal server error"""
+class S_5XX_Error(Error):
+    def __str__(self):
+        return repr(self.value)
+
+"""user defined error handler for 301 error:Redirection"""
+class R_3XX_Error(Error):
+    def __str__(self):
+        return repr(self.value)
+
+
+class UnKnowError(Error):
+    def __str__(self):
+        return repr(self.value)
+
+""" HTMLParser is used to parse the HTML for secret FLAGS and URLS"""
+class webcrawler(HTMLParser):
+
+        def handle_starttag(self, tag, attrs):
+
+                if tag=='a':
+                        for a,b in attrs:
+                                if a=='href':
+                                        newurl=[self.baseurl+b]
+                                        self.links=self.links+newurl
+                new_unvisited_urls=list((set(self.links)-set(visited_url))-set(url))
+                url.extend(new_unvisited_urls)
+
+        def getlinks(self,data):
+                self.baseurl='http://cs5700sp16.ccs.neu.edu'
+                self.links=[]
+                self.feed(data)
+                return url
+        def handle_data(self, data):
+           if (re.search("FLAG",data)):
+                if data not in secret_flag:
+                        data1=data.split()
+                        print data1[1]
+                        secret_flag.append(data)
+
+"""Fuction to send HTTP request and get STATUS of HTTP Response message"""
+def get_http(url,host,csrftoken,sessionid):
+        def get_status(data):
+                m = data.split()
+                try:
+                        status = m[1]
+                      
+                except IndexError:
+                        status = ''
+                return status
+
+        method_get='GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\nCookie: csrftoken=%s: sessionid=%s\r\n\r\n' % (url, host, csrftoken, sessionid)
+        try:
+                s.sendall(method_get)
+        except socket.error:
+                sys.exit('send failed')
+
+        data=s.recv(4096)
+        visited_url.extend(url)
+        status = get_status(data)
+        if status == '403' or status == '404':
+            raise C_4XX_Error('403 or 404 Error')
+        elif status == '301':
+            raise R_3XX__Error('301 Error')
+        elif status == '500':  # Internal Server Error
+            raise S_5XX_Error('500 Error')
+        elif status== '':
+            raise UnKnowError('Unkonwn Error')
+        return data
+
+
+def get_new_url(self, data):
+        """
+        Function to Parse the HTTP response header and get new url
+        """
+        link = re.compile(r'Location=http://cs5700\.ccs\.neu\.edu(/fakebook/[\w]+)')
+        new_url = link.findall(data)[0]
+        return new_url
+
+
+host = 'cs5700.ccs.neu.edu'
+
+try:
+	username=sys.argv[1]
+	password=sys.argv[2]
+except IndexError:
+	sys.exit('wrong format, Enter in format : ./webcrawler [hostname] [password]')
+links=[] #list to collect urls in each HTML page
+secret_flag=[] #list to collect all secret flags
+visited_url=[] #List of visited URLS
+url=['/fakebook/'] #List of URLS to be visited
+try:
+
+        s=socket.create_connection((host,80))
+
+except socket.error as error:
+       print  'Error message: ' + error[1]
+       sys.exit()
+
+try:
+	s.sendall('GET /accounts/login/?next=/fakebook/ HTTP/1.1\r\nHost: %s\r\n\r\n' % host)
+except socket.error:
+       sys.exit('connection failed')
+
+data=s.recv(4096)
+
+m=re.search("csrftoken=(.+?);",data)
+
+n=re.search("sessionid=(.+?);",data)
+
+if m:
+         csrftoken=m.group(1)
+
+if n:
+        sessionid=n.group(1)
+
+form= 'username=%s&password=%s&csrfmiddlewaretoken=%s&next='% (username,password,csrftoken)
+
+try:
+	s.sendall('POST /accounts/login/ HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Type: application/x-www-form-urlencoded\r\nCookie: csrftoken=%s; sessionid=%s\r\n\r\n%s' % (host, len(form),csrftoken, sessionid, form))
+except socket.error:
+       sys.exit('connection failed')
+post_data=s.recv(4096)
+
+n=re.search("sessionid=(.+?);",post_data)
+
+if n:
+        sessionid=n.group(1)
+
+
+while url and len(secret_flag)<5:
+        address=url.pop(0)
+        try:
+                response=get_http(address,host,csrftoken,sessionid)
+                parser=webcrawler()
+                parser.getlinks(response)
+
+        except C_4XX_Error:
+                visited_url.append(address)  # abandon the URL when 403/404 error
+        except R_3XX_Error:
+                url.insert(0,get_new_url(page)) #visit the new URL
+        except S_5XX_Error:
+                s = socket.create_connection((host, 80))#socket created again after 500 error
+                visited_url.pop()
+                url.insert(0, address)
+        except UnKnowError:
+                s = socket.create_connection((host, 80))
+                visited_url.pop()
+                url.insert(0, address)
+
+s.close()
+
+

@@ -1,0 +1,43 @@
+README
+
+Run
+
+$ ./webcrawler [username] [password]
+====================================================================================
+Approach
+
+0. send HTTP GET request to Facebook
+1. using regular expressions, get cookies: crsftoken and session ID
+2. Send HTTP POST request with username and password(passed as arguments)and cookies
+3. If login successful, parse the session ID using regular expression
+4. visit all the urls stored in url list using GET request(first url stored in url
+   list is the homepage)After opening a url, the url is put in a list
+   which contains visited urls.
+5. HTMLParser is used to find all urls link in every html page and the secret flags. 
+   If a url is in visited list or in to visit url list, the url is dropped.If secret
+   flag found,its appended to the secret flags list.
+6. When urls is empty or 5 secret flags collected,socket connection is closed.
+7. Handle exception: After sending HTTP GET request, the response is parsed to check
+   HTTP status code.
+   - if the status code is 200,continue crawling
+   - if the status code is 301, parse the response message and get redirect
+       url and insert the new url to urls
+   - if the status is 403 or 404, abandon this url by just putting it into
+       visited list
+   - if the status is 500, re-try to send the request till open it successfully. 
+     After reconnecting,the url is removed from visited list, and inserted to 
+     the first position of urls. And the crawling continues till the loop 
+	 condition is satisfied.
+=====================================================================================
+Challenges
+
+1.Logging in to Fakebook, to get the right attributes to be sent in the POST
+Request
+2. 500 server response error handling
+
+======================================================================================
+Testing the code
+
+1.The code was tested when server is not available, error message is printed.
+2. Code was tested for two users, secret keys was fetched for both users.
+3. Tested all exception handlers, which was raised on the status code from the server
